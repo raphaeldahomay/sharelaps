@@ -55,9 +55,9 @@ class PositionDB(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    portfolio_id: Mapped[str] = mapped_column(
+    portfolio_name: Mapped[str] = mapped_column(
         String(64),
-        ForeignKey("portfolios.id", ondelete="CASCADE"),
+        ForeignKey("portfolios.name", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -74,23 +74,19 @@ class PositionDB(Base):
 
     # 1 ticker per portfolio (so you don't accidentally duplicate)
     __table_args__ = (
-        UniqueConstraint("portfolio_id", "ticker", name="uq_positions_portfolio_ticker"),
-        Index("ix_positions_portfolio_id_ticker", "portfolio_id", "ticker"),
+        UniqueConstraint("portfolio_name", "ticker", name="uq_positions_portfolio_ticker"),
+        Index("ix_positions_portfolio_id_ticker", "portfolio_name", "ticker"),
     )
 
 
 class PortfolioSnapshotDB(Base):
-    """
-    Optional: persist snapshots (portfolio value at a date).
-    Mirrors your PortfolioSnapshot dataclass.
-    """
     __tablename__ = "portfolio_snapshots"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    portfolio_id: Mapped[str] = mapped_column(
+    portfolio_name: Mapped[str] = mapped_column(
         String(64),
-        ForeignKey("portfolios.id", ondelete="CASCADE"),
+        ForeignKey("portfolios.name", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -98,6 +94,8 @@ class PortfolioSnapshotDB(Base):
     asof_date: Mapped[date] = mapped_column(Date, nullable=False)
     port_value: Mapped[Decimal] = mapped_column(Numeric(24, 8), nullable=False)
     benchmark_rel_value: Mapped[Decimal | None] = mapped_column(Numeric(24, 8), nullable=True)
+    cash: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False, default=Decimal("0"))
+    base_ccy: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
     portfolio: Mapped[PortfolioDB] = relationship(back_populates="snapshots")
 
@@ -108,22 +106,19 @@ class PortfolioSnapshotDB(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("portfolio_id", "date", name="uq_portfolio_snapshots_portfolio_date"),
-        Index("ix_portfolio_snapshots_portfolio_date", "portfolio_id", "date"),
+        UniqueConstraint("portfolio_name", "asof_date", name="uq_portfolio_snapshots_portfolio_date"),
+        Index("ix_portfolio_snapshots_portfolio_date", "portfolio_name", "asof_date"),
     )
 
 
 class TickerSnapshotDB(Base):
-    """
-    Optional: persist tickers composition at snapshot date.
-    Mirrors your TickerSnapshot dataclass.
-    """
     __tablename__ = "ticker_snapshots"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    snapshot_id: Mapped[int] = mapped_column(
-        ForeignKey("portfolio_snapshots.id", ondelete="CASCADE"),
+    snapshot_name: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("portfolio_snapshots.portfolio_name", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -133,11 +128,11 @@ class TickerSnapshotDB(Base):
     shares: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(24, 8), nullable=False)  # in portfolio currency
     value: Mapped[Decimal] = mapped_column(Numeric(24, 8), nullable=False)  # shares * price
-    asof_date: Mapped[date] = mapped_column(Date, nullable=False)
+    fx_to_base: Mapped[Decimal] = mapped_column(Numeric(20, 10), nullable=False, default=Decimal("1"))
 
     snapshot: Mapped[PortfolioSnapshotDB] = relationship(back_populates="tickers")
 
     __table_args__ = (
-        UniqueConstraint("snapshot_id", "ticker", name="uq_ticker_snapshots_snapshot_ticker"),
-        Index("ix_ticker_snapshots_snapshot_ticker", "snapshot_id", "ticker"),
+        UniqueConstraint("snapshot_name", "ticker", name="uq_ticker_snapshots_snapshot_ticker"),
+        Index("ix_ticker_snapshots_snapshot_ticker", "snapshot_name", "ticker"),
     )
