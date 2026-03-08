@@ -95,5 +95,6 @@ def testing_user_power_v2():
             loop = False
             continue
 
+
 if __name__ == "__main__":
     testing_user_power_v2()
